@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Baby Monitor + Audio</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 20px; shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 500px; text-align: center; }
+        #video-wrap { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #222; aspect-ratio: 4/3; }
+        video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+        .status { margin-top: 1.5rem; padding: 1rem; border-radius: 10px; font-weight: bold; font-size: 1.2rem; }
+        .normal { background: #e8f5e9; color: #2e7d32; }
+        .alert { background: #ffebee; color: #c62828; border: 2px solid #c62828; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        button { margin-top: 10px; padding: 10px 20px; border-radius: 5px; border: none; background: #007bff; color: white; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>BabyVision AI</h2>
+    <div id="video-wrap">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="overlay"></canvas>
+    </div>
+    
+    <button id="enableAudio">Click to Enable Audio Alerts</button>
+    
+    <div id="status" class="status normal">Loading AI Models...</div>
+</div>
+
+<script type="module">
+    import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+
+    const video = document.getElementById("webcam");
+    const statusBox = document.getElementById("status");
+    const audioBtn = document.getElementById("enableAudio");
+    
+    // Audio context setup
+    const alertSound = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock_short_beeps.ogg');
+    let audioEnabled = false;
+
+    audioBtn.addEventListener('click', () => {
+        audioEnabled = true;
+        audioBtn.innerText = "Audio Enabled ✅";
+        audioBtn.style.background = "#4caf50";
+    });
+
+    let faceLandmarker;
+    let lastVideoTime = -1;
+
+    async function init() {
+        const filesetResolver = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
+            runningMode: "VIDEO",
+            numFaces: 1
+        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        video.addEventListener("loadeddata", predict);
+    }
+
+    async function predict() {
+        if (lastVideoTime !== video.currentTime) {
+            lastVideoTime = video.currentTime;
+            const results = faceLandmarker.detectForVideo(video, performance.now());
+            
+            if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+                const landmarks = results.faceLandmarks[0];
+                const mouthOpen = Math.abs(landmarks[13].y - landmarks[14].y);
+                const eyeOpen = Math.abs(landmarks[159].y - landmarks[145].y);
+
+                if (mouthOpen > 0.05) {
+                    statusBox.innerText = "⚠️ BABY CRYING";
+                    statusBox.className = "status alert";
+                    if (audioEnabled) alertSound.play();
+                } else if (eyeOpen < 0.015) {
+                    statusBox.innerText = "Baby Sleeping 💤";
+                    statusBox.className = "status normal";
+                    statusBox.style.color = "#7b1fa2";
+                } else {
+                    statusBox.innerText = "Baby Awake & Calm 😊";
+                    statusBox.className = "status normal";
+                    statusBox.style.color = "#2e7d32";
+                }
+            } else {
+                statusBox.innerText = "Searching for face...";
+                statusBox.className = "status normal";
+            }
+        }
+        requestAnimationFrame(predict);
+    }
+
+    init();
+</script>
+</body>
+</html>
