@@ -3,99 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Baby Monitor + Audio</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <title>Understanding Caius</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        .container { background: white; padding: 2rem; border-radius: 20px; shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 500px; text-align: center; }
-        #video-wrap { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #222; aspect-ratio: 4/3; }
+        :root { --brand: #74b9ff; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .app-container { width: 100%; max-width: 700px; }
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { color: var(--brand); margin: 0; font-size: 1.8rem; }
+        
+        #monitor-window { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 20px; overflow: hidden; border: 4px solid var(--card); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
-        .status { margin-top: 1.5rem; padding: 1rem; border-radius: 10px; font-weight: bold; font-size: 1.2rem; }
-        .normal { background: #e8f5e9; color: #2e7d32; }
-        .alert { background: #ffebee; color: #c62828; border: 2px solid #c62828; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
-        button { margin-top: 10px; padding: 10px 20px; border-radius: 5px; border: none; background: #007bff; color: white; cursor: pointer; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 1rem; }
+        .btn-primary { background: var(--brand); color: white; }
+        .btn-secondary { background: #fdcb6e; color: #2d3436; }
+
+        .insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 20px; }
+        .card { background: var(--card); padding: 15px; border-radius: 15px; text-align: center; transition: 0.3s; border: 1px solid #334155; }
+        .card strong { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; }
+        .card span { font-weight: bold; font-size: 1rem; }
+        .alert-active { background: #7f1d1d !important; border-color: #ef4444 !important; animation: pulse 1.5s infinite; }
+
+        .history { margin-top: 30px; background: var(--card); padding: 20px; border-radius: 20px; }
+        .history h3 { margin-top: 0; color: var(--brand); border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        #history-list { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; }
+        .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+        
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>BabyVision AI</h2>
-    <div id="video-wrap">
+<div class="app-container">
+    <header>
+        <h1>Understanding Caius</h1>
+        <p style="color: #94a3b8;">AI-Powered Baby Needs Monitor</p>
+    </header>
+
+    <div id="monitor-window">
         <video id="webcam" autoplay playsinline></video>
         <canvas id="overlay"></canvas>
     </div>
-    
-    <button id="enableAudio">Click to Enable Audio Alerts</button>
-    
-    <div id="status" class="status normal">Loading AI Models...</div>
+
+    <div class="btn-group">
+        <button id="startBtn" class="btn-primary">Start Monitoring</button>
+        <button id="calibBtn" class="btn-secondary" style="display:none;">Set Baseline</button>
+    </div>
+
+    <div class="insights">
+        <div id="hunger-card" class="card"><strong>Hunger</strong><span>Normal</span></div>
+        <div id="colic-card" class="card"><strong>Colic/Gas</strong><span>Normal</span></div>
+        <div id="tired-card" class="card"><strong>Sleep State</strong><span>Awake</span></div>
+        <div id="comfort-card" class="card"><strong>Comfort</strong><span>Steady</span></div>
+    </div>
+
+    <div class="history">
+        <h3>Caius's History (Today)</h3>
+        <ul id="history-list">
+            <li class="history-item"><span style="color:#94a3b8">System Ready...</span></li>
+        </ul>
+    </div>
 </div>
 
 <script type="module">
-    import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+    import { FaceLandmarker, PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     const video = document.getElementById("webcam");
-    const statusBox = document.getElementById("status");
-    const audioBtn = document.getElementById("enableAudio");
-    
-    // Audio context setup
-    const alertSound = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock_short_beeps.ogg');
-    let audioEnabled = false;
-
-    audioBtn.addEventListener('click', () => {
-        audioEnabled = true;
-        audioBtn.innerText = "Audio Enabled ✅";
-        audioBtn.style.background = "#4caf50";
-    });
-
-    let faceLandmarker;
-    let lastVideoTime = -1;
+    const historyList = document.getElementById("history-list");
+    let faceLandmarker, poseLandmarker;
+    let baseline = { mouthHand: 0.5, kneeHip: 0.3, set: false };
+    let lastLogTime = 0;
 
     async function init() {
-        const filesetResolver = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-            baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` },
-            runningMode: "VIDEO",
-            numFaces: 1
-        });
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+        faceLandmarker = await FaceLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` }, runningMode: "VIDEO" });
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task` }, runningMode: "VIDEO" });
+        
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
-        video.addEventListener("loadeddata", predict);
+        video.addEventListener("loadeddata", () => {
+            document.getElementById('calibBtn').style.display = "block";
+            detect();
+        });
     }
 
-    async function predict() {
-        if (lastVideoTime !== video.currentTime) {
-            lastVideoTime = video.currentTime;
-            const results = faceLandmarker.detectForVideo(video, performance.now());
-            
-            if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-                const landmarks = results.faceLandmarks[0];
-                const mouthOpen = Math.abs(landmarks[13].y - landmarks[14].y);
-                const eyeOpen = Math.abs(landmarks[159].y - landmarks[145].y);
+    function logEvent(event) {
+        const now = Date.now();
+        if (now - lastLogTime < 10000) return; // Prevent spamming history
+        lastLogTime = now;
 
-                if (mouthOpen > 0.05) {
-                    statusBox.innerText = "⚠️ BABY CRYING";
-                    statusBox.className = "status alert";
-                    if (audioEnabled) alertSound.play();
-                } else if (eyeOpen < 0.015) {
-                    statusBox.innerText = "Baby Sleeping 💤";
-                    statusBox.className = "status normal";
-                    statusBox.style.color = "#7b1fa2";
-                } else {
-                    statusBox.innerText = "Baby Awake & Calm 😊";
-                    statusBox.className = "status normal";
-                    statusBox.style.color = "#2e7d32";
+        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const li = document.createElement('li');
+        li.className = 'history-item';
+        li.innerHTML = `<span>${event}</span> <span style="color:#94a3b8">${timeString}</span>`;
+        historyList.prepend(li);
+    }
+
+    function detect() {
+        const now = performance.now();
+        const faceResults = faceLandmarker.detectForVideo(video, now);
+        const poseResults = poseLandmarker.detectForVideo(video, now);
+
+        if (faceResults.faceLandmarks[0] && poseResults.poseLandmarks[0]) {
+            const face = faceResults.faceLandmarks[0];
+            const pose = poseResults.poseLandmarks[0];
+
+            const curMH = Math.hypot(pose[16].x - face[13].x, pose[16].y - face[13].y);
+            const curKH = Math.abs(pose[26].y - pose[24].y);
+            const eyeOpen = Math.abs(face[159].y - face[145].y);
+
+            if (baseline.set) {
+                // Logic checks
+                if (curMH < baseline.mouthHand * 0.6) {
+                    update('hunger-card', 'HUNGRY', true);
+                    logEvent("Caius might be hungry (Hand to mouth)");
+                } else { update('hunger-card', 'Normal', false); }
+
+                if (curKH < baseline.kneeHip * 0.7) {
+                    update('colic-card', 'GAS/COLIC', true);
+                    logEvent("Caius showing gas signs (Knees up)");
+                } else { update('colic-card', 'Normal', false); }
+
+                if (eyeOpen < 0.015) {
+                    update('tired-card', 'SLEEPING', false);
+                    document.getElementById('tired-card').style.background = "#2e1065";
+                } else { 
+                    update('tired-card', 'AWAKE', false);
+                    document.getElementById('tired-card').style.background = "#1e293b";
                 }
             } else {
-                statusBox.innerText = "Searching for face...";
-                statusBox.className = "status normal";
+                // Store live values to baseline during calibration window
+                baseline.mouthHand = curMH;
+                baseline.kneeHip = curKH;
             }
         }
-        requestAnimationFrame(predict);
+        requestAnimationFrame(detect);
     }
 
-    init();
+    function update(id, msg, alert) {
+        const el = document.getElementById(id);
+        el.querySelector('span').innerText = msg;
+        alert ? el.classList.add('alert-active') : el.classList.remove('alert-active');
+    }
+
+    document.getElementById('calibBtn').addEventListener('click', () => {
+        baseline.set = true;
+        logEvent("Calibration set. Baseline established.");
+        document.getElementById('calibBtn').innerText = "Recalibrate";
+    });
+
+    document.getElementById('startBtn').addEventListener('click', init);
 </script>
 </body>
 </html>
