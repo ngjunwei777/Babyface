@@ -2,135 +2,301 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Understanding Caius | Ng Family</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
     <style>
-        :root { --brand: #74b9ff; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #fdcb6e; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .app-container { width: 100%; max-width: 600px; }
-        #monitor-window { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 20px; overflow: hidden; border: 4px solid var(--card); }
-        video { width: 100%; height: 100%; transform: scaleX(-1); }
-        
-        /* Timer Styles */
-        .timer-section { background: #2f3640; padding: 15px; border-radius: 15px; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--brand); }
-        .timer-display { font-size: 1.4rem; font-weight: bold; color: var(--accent); }
-        .feed-btn { background: #44bd32; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        :root {
+            --primary: #74b9ff;
+            --success: #55efc4;
+            --warning: #ffeaa7;
+            --danger: #ff7675;
+            --bg: #0b0e14;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
 
-        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .card { background: var(--card); padding: 15px; border-radius: 15px; text-align: left; }
-        .alert { background: #ff4757 !important; animation: pulse 1s infinite; }
-        @keyframes pulse { 50% { opacity: 0.8; } }
-        button#startBtn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: var(--brand); font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: #fff;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Glassmorphism Header */
+        header {
+            width: 100%;
+            padding: 20px 0;
+            background: linear-gradient(to bottom, rgba(116, 185, 255, 0.1), transparent);
+            text-align: center;
+        }
+
+        h1 { margin: 0; font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .family-tag { font-size: 0.7rem; text-transform: uppercase; color: var(--primary); letter-spacing: 2px; opacity: 0.8; }
+
+        /* Main Viewport */
+        .viewport-container {
+            position: relative;
+            width: 92%;
+            max-width: 500px;
+            aspect-ratio: 4/3;
+            margin: 10px 0;
+            border-radius: 30px;
+            padding: 5px;
+            background: var(--border);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            transition: all 0.5s ease;
+        }
+
+        /* Status Ring */
+        .status-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 30px;
+            border: 3px solid transparent;
+            transition: 0.5s;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .ring-stable { border-color: var(--success); box-shadow: inset 0 0 15px var(--success); }
+        .ring-alert { border-color: var(--danger); box-shadow: inset 0 0 25px var(--danger); animation: pulse 1.5s infinite; }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 25px;
+            transform: scaleX(-1);
+        }
+
+        /* Dashboard Cards */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 92%;
+            max-width: 500px;
+            margin-top: 15px;
+        }
+
+        .card {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .card span { font-size: 0.75rem; color: #aaa; font-weight: 600; }
+        .card b { font-size: 1.1rem; }
+
+        /* Feeding Timer Bar */
+        .timer-bar {
+            width: 92%;
+            max-width: 500px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            margin: 15px 0;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-action {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 15px rgba(116, 185, 255, 0.3);
+            transition: 0.2s;
+        }
+
+        .btn-action:active { transform: scale(0.95); opacity: 0.8; }
+
+        /* Activity Timeline */
+        .timeline {
+            width: 92%;
+            max-width: 500px;
+            height: 120px;
+            overflow-y: auto;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 20px;
+            background: rgba(0,0,0,0.2);
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            opacity: 0.8;
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        
+        .setup-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 40px;
+        }
     </style>
 </head>
 <body>
 
-<div class="app-container">
-    <h1>Understanding Caius</h1>
-    
-    <button id="startBtn">START MONITORING</button>
+    <div id="setup" class="setup-overlay">
+        <div class="family-tag">Ng Family Presents</div>
+        <h1 style="font-size: 2.2rem; margin: 10px 0;">Understanding Caius</h1>
+        <p style="color: #aaa; margin-bottom: 30px;">An AI-powered monitor tailored for your baby's needs.</p>
+        <button id="startBtn" class="btn-action" style="padding: 20px 50px; font-size: 1.1rem;">INITIALIZE SYSTEM</button>
+    </div>
 
-    <div id="monitor-window"><video id="webcam" autoplay playsinline muted></video></div>
+    <header>
+        <div class="family-tag">Ng Family Monitor</div>
+        <h1>Understanding Caius</h1>
+    </header>
 
-    <div class="timer-section">
+    <div class="viewport-container" id="viewport">
+        <div class="status-ring" id="ring"></div>
+        <video id="webcam" autoplay playsinline muted></video>
+    </div>
+
+    <div class="timer-bar">
         <div>
-            <small>TIME SINCE LAST FEED</small>
-            <div id="last-feed-clock" class="timer-display">00:00:00</div>
+            <span>LAST FEED</span>
+            <div id="timer-val" style="font-size: 1.3rem; font-weight: 700; color: var(--warning);">00:00:00</div>
         </div>
-        <button id="resetFeedBtn" class="feed-btn">🍼 RESET TIMER</button>
+        <button id="feedReset" class="btn-action" style="background: var(--success);">FEED NOW</button>
     </div>
 
     <div class="dashboard">
-        <div id="hunger" class="card"><small>HUNGER CUES</small><br><b>Checking...</b></div>
-        <div id="tired" class="card"><small>SLEEP STATE</small><br><b>Checking...</b></div>
+        <div class="card" id="hunger-card">
+            <span>HUNGER CUES</span>
+            <b id="h-val">Observing...</b>
+        </div>
+        <div class="card" id="tired-card">
+            <span>SLEEP STATE</span>
+            <b id="s-val">Scanning...</b>
+        </div>
     </div>
-</div>
+
+    <div class="timeline" id="timeline">
+        <div class="log-entry">System ready for calibration.</div>
+    </div>
+
+    <div style="margin: 20px 0;">
+        <button id="calibBtn" class="btn-action" style="background: var(--warning); color: #000;">SET CALM BASELINE</button>
+    </div>
 
 <script type="module">
     import { FaceLandmarker, PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     const video = document.getElementById("webcam");
+    const timeline = document.getElementById("timeline");
     let faceModel, poseModel;
-    let lastFeedTime = Date.now();
+    let lastFeed = Date.now();
     let baseline = { handMouth: 0.5, set: false };
 
-    // --- TIMER LOGIC ---
-    function updateTimer() {
-        const diff = Date.now() - lastFeedTime;
-        const hours = Math.floor(diff / 3600000);
-        const mins = Math.floor((diff % 3600000) / 60000);
-        const secs = Math.floor((diff % 60000) / 1000);
-        document.getElementById('last-feed-clock').innerText = 
-            `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        
-        // Auto-Alert Hunger after 3 hours
-        if (hours >= 3) {
-            document.getElementById('hunger').classList.add('alert');
-            document.getElementById('hunger').querySelector('b').innerText = "Schedule: 3h+ since feed";
+    function addLog(msg) {
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `<span>${msg}</span><span style="color:#666">${time}</span>`;
+        timeline.prepend(div);
+    }
+
+    async function startApp() {
+        document.getElementById('setup').style.display = 'none';
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            video.srcObject = stream;
+            
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+            faceModel = await FaceLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" }, runningMode: "VIDEO" });
+            poseModel = await PoseLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task" }, runningMode: "VIDEO" });
+            
+            addLog("AI Core Loaded Successfully.");
+            detect();
+        } catch (err) {
+            alert("Camera Access Required.");
         }
     }
-    setInterval(updateTimer, 1000);
 
-    document.getElementById('resetFeedBtn').onclick = () => {
-        lastFeedTime = Date.now();
-        document.getElementById('hunger').classList.remove('alert');
-    };
-
-    // --- AI LOGIC ---
-    async function init() {
-        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-        faceModel = await FaceLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" }, runningMode: "VIDEO" });
-        poseModel = await PoseLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task" }, runningMode: "VIDEO" });
-        
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-            document.getElementById('startBtn').style.display = "none";
-            run();
-        };
-    }
-
-    function run() {
+    function detect() {
+        if (!faceModel || !poseModel) return;
         const now = performance.now();
-        const face = faceModel.detectForVideo(video, now);
-        const pose = poseModel.detectForVideo(video, now);
+        const fResults = faceModel.detectForVideo(video, now);
+        const pResults = poseModel.detectForVideo(video, now);
 
-        if (face.faceLandmarks[0] && pose.poseLandmarks[0]) {
-            const f = face.faceLandmarks[0];
-            const p = pose.poseLandmarks[0];
+        const ring = document.getElementById('ring');
+        
+        if (fResults.faceLandmarks[0] && pResults.poseLandmarks[0]) {
+            const f = fResults.faceLandmarks[0];
+            const p = pResults.poseLandmarks[0];
+            
+            const dist = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
+            const eyeGap = Math.abs(f[159].y - f[145].y);
 
-            // Set dynamic baseline if not set
-            if (!baseline.set) {
-                baseline.handMouth = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
-                baseline.set = true;
-            }
-
-            // Detect Hunger Cue
-            const handDist = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
-            const mouthOpen = Math.abs(f[13].y - f[14].y);
-
-            if (handDist < (baseline.handMouth * 0.6)) {
-                document.getElementById('hunger').classList.add('alert');
-                document.getElementById('hunger').querySelector('b').innerText = "CUE: Hand to Mouth";
-            } else if (mouthOpen > 0.04) {
-                document.getElementById('hunger').querySelector('b').innerText = "Crying/Vocalizing";
-            } else {
-                // If schedule alert isn't active, reset to neutral
-                if ((Date.now() - lastFeedTime) < 10800000) {
-                    document.getElementById('hunger').classList.remove('alert');
-                    document.getElementById('hunger').querySelector('b').innerText = "Neutral";
+            if (baseline.set) {
+                // Hunger logic
+                if (dist < (baseline.handMouth * 0.6)) {
+                    updateUI('hunger-card', 'h-val', 'Hungry Cue', true);
+                    ring.className = 'status-ring ring-alert';
+                } else {
+                    updateUI('hunger-card', 'h-label', 'Stable', false);
+                    ring.className = 'status-ring ring-stable';
                 }
-            }
 
-            // Detect Sleep
-            const eyeOpen = Math.abs(f[159].y - f[145].y);
-            document.getElementById('tired').querySelector('b').innerText = eyeOpen < 0.012 ? "Sleeping 💤" : "Awake";
+                // Tired logic
+                document.getElementById('s-val').innerText = eyeGap < 0.012 ? "Deep Sleep 💤" : "Active / Awake";
+            } else {
+                baseline.handMouth = dist;
+            }
         }
-        requestAnimationFrame(run);
+        requestAnimationFrame(detect);
     }
 
-    document.getElementById('startBtn').onclick = init;
+    function updateUI(cardId, valId, msg, isAlert) {
+        document.getElementById(valId).innerText = msg;
+        if (isAlert) document.getElementById(cardId).classList.add('alert');
+        else document.getElementById(cardId).classList.remove('alert');
+    }
+
+    // Feeding Timer logic
+    setInterval(() => {
+        const diff = Date.now() - lastFeed;
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        document.getElementById('timer-val').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }, 1000);
+
+    document.getElementById('startBtn').onclick = startApp;
+    document.getElementById('feedReset').onclick = () => { lastFeed = Date.now(); addLog("Feeding started."); };
+    document.getElementById('calibBtn').onclick = () => { baseline.set = true; addLog("Baseline calibrated."); };
 </script>
 </body>
 </html>
