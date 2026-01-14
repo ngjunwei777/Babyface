@@ -6,81 +6,131 @@
     <title>Understanding Caius | Ng Family</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
     <style>
-        :root { --brand: #74b9ff; --bg: #000; --card: #1e293b; --text: #f8fafc; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); text-align: center; padding: 20px; margin: 0; }
-        .app-container { max-width: 500px; margin: auto; }
-        #monitor-window { width: 100%; aspect-ratio: 4/3; background: #222; border-radius: 20px; border: 2px solid #444; overflow: hidden; position: relative; margin-bottom: 20px; }
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        .btn-main { width: 100%; padding: 20px; border-radius: 15px; border: none; background: var(--brand); color: #000; font-weight: bold; cursor: pointer; font-size: 1.2rem; }
-        #status-msg { margin: 15px 0; font-size: 0.9rem; min-height: 1.2em; }
-        .error { color: #ff7675; font-weight: bold; }
+        :root { --brand: #74b9ff; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #fdcb6e; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .app-container { width: 100%; max-width: 600px; }
+        #monitor-window { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 20px; overflow: hidden; border: 4px solid var(--card); }
+        video { width: 100%; height: 100%; transform: scaleX(-1); }
+        
+        /* Timer Styles */
+        .timer-section { background: #2f3640; padding: 15px; border-radius: 15px; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--brand); }
+        .timer-display { font-size: 1.4rem; font-weight: bold; color: var(--accent); }
+        .feed-btn { background: #44bd32; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .card { background: var(--card); padding: 15px; border-radius: 15px; text-align: left; }
+        .alert { background: #ff4757 !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 50% { opacity: 0.8; } }
+        button#startBtn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: var(--brand); font-weight: bold; cursor: pointer; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="app-container">
-        <h1>Understanding Caius</h1>
-        <p style="opacity: 0.7;">Created by Ng Family</p>
+<div class="app-container">
+    <h1>Understanding Caius</h1>
+    
+    <button id="startBtn">START MONITORING</button>
 
-        <div id="monitor-window">
-            <video id="webcam" autoplay playsinline muted></video>
+    <div id="monitor-window"><video id="webcam" autoplay playsinline muted></video></div>
+
+    <div class="timer-section">
+        <div>
+            <small>TIME SINCE LAST FEED</small>
+            <div id="last-feed-clock" class="timer-display">00:00:00</div>
         </div>
-
-        <button id="startBtn" class="btn-main">ACTIVATE SYSTEM</button>
-        <div id="status-msg">Click button to begin...</div>
+        <button id="resetFeedBtn" class="feed-btn">🍼 RESET TIMER</button>
     </div>
 
-<script type="module">
-    // 1. FORCE HTTPS REDIRECT
-    if (location.protocol === 'http:' && location.hostname !== 'localhost') {
-        location.replace(`https://${location.host}${location.pathname}${location.search}`);
-    }
+    <div class="dashboard">
+        <div id="hunger" class="card"><small>HUNGER CUES</small><br><b>Checking...</b></div>
+        <div id="tired" class="card"><small>SLEEP STATE</small><br><b>Checking...</b></div>
+    </div>
+</div>
 
+<script type="module">
     import { FaceLandmarker, PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     const video = document.getElementById("webcam");
-    const statusMsg = document.getElementById("status-msg");
+    let faceModel, poseModel;
+    let lastFeedTime = Date.now();
+    let baseline = { handMouth: 0.5, set: false };
 
-    async function startSystem() {
-        // Double check protocol
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-            statusMsg.innerHTML = "<span class='error'>STILL ON HTTP. Use the HTTPS link provided by GitHub.</span>";
-            return;
-        }
-
-        try {
-            statusMsg.innerText = "Loading AI models...";
-            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-            
-            const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
-                runningMode: "VIDEO"
-            });
-
-            statusMsg.innerText = "Requesting Camera... TAP ALLOW";
-            
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "user" } 
-            });
-            
-            video.srcObject = stream;
-            video.onloadedmetadata = () => {
-                video.play();
-                statusMsg.innerText = "✅ SYSTEM ONLINE";
-                document.getElementById('startBtn').style.visibility = "hidden";
-            };
-
-        } catch (err) {
-            console.error(err);
-            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                statusMsg.innerHTML = "<span class='error'>CAMERA BLOCKED. Please reset permissions in your browser settings.</span>";
-            } else {
-                statusMsg.innerHTML = `<span class='error'>ERROR: ${err.message}</span>`;
-            }
+    // --- TIMER LOGIC ---
+    function updateTimer() {
+        const diff = Date.now() - lastFeedTime;
+        const hours = Math.floor(diff / 3600000);
+        const mins = Math.floor((diff % 3600000) / 60000);
+        const secs = Math.floor((diff % 60000) / 1000);
+        document.getElementById('last-feed-clock').innerText = 
+            `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        
+        // Auto-Alert Hunger after 3 hours
+        if (hours >= 3) {
+            document.getElementById('hunger').classList.add('alert');
+            document.getElementById('hunger').querySelector('b').innerText = "Schedule: 3h+ since feed";
         }
     }
+    setInterval(updateTimer, 1000);
 
-    document.getElementById("startBtn").addEventListener("click", startSystem);
+    document.getElementById('resetFeedBtn').onclick = () => {
+        lastFeedTime = Date.now();
+        document.getElementById('hunger').classList.remove('alert');
+    };
+
+    // --- AI LOGIC ---
+    async function init() {
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+        faceModel = await FaceLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" }, runningMode: "VIDEO" });
+        poseModel = await PoseLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task" }, runningMode: "VIDEO" });
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+            document.getElementById('startBtn').style.display = "none";
+            run();
+        };
+    }
+
+    function run() {
+        const now = performance.now();
+        const face = faceModel.detectForVideo(video, now);
+        const pose = poseModel.detectForVideo(video, now);
+
+        if (face.faceLandmarks[0] && pose.poseLandmarks[0]) {
+            const f = face.faceLandmarks[0];
+            const p = pose.poseLandmarks[0];
+
+            // Set dynamic baseline if not set
+            if (!baseline.set) {
+                baseline.handMouth = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
+                baseline.set = true;
+            }
+
+            // Detect Hunger Cue
+            const handDist = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
+            const mouthOpen = Math.abs(f[13].y - f[14].y);
+
+            if (handDist < (baseline.handMouth * 0.6)) {
+                document.getElementById('hunger').classList.add('alert');
+                document.getElementById('hunger').querySelector('b').innerText = "CUE: Hand to Mouth";
+            } else if (mouthOpen > 0.04) {
+                document.getElementById('hunger').querySelector('b').innerText = "Crying/Vocalizing";
+            } else {
+                // If schedule alert isn't active, reset to neutral
+                if ((Date.now() - lastFeedTime) < 10800000) {
+                    document.getElementById('hunger').classList.remove('alert');
+                    document.getElementById('hunger').querySelector('b').innerText = "Neutral";
+                }
+            }
+
+            // Detect Sleep
+            const eyeOpen = Math.abs(f[159].y - f[145].y);
+            document.getElementById('tired').querySelector('b').innerText = eyeOpen < 0.012 ? "Sleeping 💤" : "Awake";
+        }
+        requestAnimationFrame(run);
+    }
+
+    document.getElementById('startBtn').onclick = init;
 </script>
 </body>
 </html>
