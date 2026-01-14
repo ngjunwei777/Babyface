@@ -9,104 +9,112 @@
         :root { --p: #74b9ff; --s: #55efc4; --d: #ff7675; --bg: #0b0e14; --glass: rgba(255, 255, 255, 0.05); }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
         
-        /* Premium Monitor UI */
-        .monitor-container { position: relative; width: 100%; max-width: 500px; aspect-ratio: 4/3; background: #000; border-radius: 30px; border: 2px solid #1e293b; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+        /* Premium Viewport */
+        .viewport { position: relative; width: 100%; max-width: 500px; aspect-ratio: 4/3; background: #000; border-radius: 30px; border: 2px solid #1e293b; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
         
-        /* Dashboard */
-        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 500px; margin-top: 20px; }
-        .card { background: var(--glass); border-radius: 20px; padding: 15px; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s; }
-        .card label { font-size: 0.6rem; color: #888; text-transform: uppercase; font-weight: 800; }
-        .card div { font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
+        /* Status Overlays */
+        #loader-text { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; text-align: center; padding: 20px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--p); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
         
-        /* Action Button */
-        .btn-action { width: 100%; max-width: 500px; padding: 20px; border-radius: 18px; border: none; font-weight: 800; font-size: 1.1rem; cursor: pointer; margin-top: 15px; transition: 0.3s; }
-        #startBtn { background: var(--p); color: #000; }
+        /* Dashboard Cards */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 500px; margin-top: 20px; }
+        .card { background: var(--glass); border-radius: 20px; padding: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        .card label { font-size: 0.65rem; color: #888; text-transform: uppercase; font-weight: 800; }
+        .card div { font-size: 1.1rem; font-weight: 700; margin-top: 5px; color: var(--s); }
         
-        .status-msg { margin-top: 10px; font-size: 0.8rem; color: #666; font-family: monospace; }
-        .alert-active { background: rgba(255, 118, 117, 0.2) !important; border-color: var(--d) !important; animation: pulse 1s infinite; }
-        @keyframes pulse { 50% { opacity: 0.7; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-main { width: 100%; max-width: 500px; padding: 20px; border-radius: 20px; border: none; font-weight: 800; font-size: 1.1rem; background: var(--p); margin-top: 15px; cursor: pointer; }
+        .error-log { font-size: 0.7rem; color: #ff7675; margin-top: 10px; font-family: monospace; }
     </style>
 </head>
 <body>
 
-    <header style="text-align: center; margin-bottom: 10px;">
-        <div style="font-size: 0.6rem; color: var(--p); letter-spacing: 2px;">THE NG FAMILY</div>
-        <h1 style="margin: 0; font-size: 1.4rem;">Understanding Caius</h1>
+    <header style="text-align: center; margin-bottom: 15px;">
+        <div style="font-size: 0.6rem; color: var(--p); letter-spacing: 2px; text-transform: uppercase;">The Ng Family Monitor</div>
+        <h1 style="margin: 0; font-size: 1.5rem;">Caius AI</h1>
     </header>
 
-    <div class="monitor-container">
+    <div class="viewport">
+        <div id="loader-text">
+            <div class="spinner" id="loader-spinner" style="display:none;"></div>
+            <span id="load-msg">Ready to start monitor</span>
+        </div>
         <video id="webcam" autoplay playsinline muted></video>
-        <div id="loader-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; font-size: 0.9rem; z-index:10;">
-            Waiting for Camera...
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <label>Hunger Cues</label>
+            <div id="h-val">Offline</div>
+        </div>
+        <div class="card">
+            <label>Colic/Gas</label>
+            <div id="c-val">Offline</div>
+        </div>
+        <div class="card">
+            <label>Diaper Status</label>
+            <div id="d-val">Offline</div>
+        </div>
+        <div class="card">
+            <label>Sleep State</label>
+            <div id="s-val">Offline</div>
         </div>
     </div>
 
-    <div class="status-msg" id="status">System: Standby</div>
-
-    <div class="dashboard">
-        <div class="card" id="h-card"><label>Hunger</label><div id="h-val">Offline</div></div>
-        <div class="card" id="c-card"><label>Colic/Gas</label><div id="c-val">Offline</div></div>
-        <div class="card" id="d-card"><label>Diaper</label><div id="d-val">Offline</div></div>
-        <div class="card" id="s-card"><label>State</label><div id="s-val">Offline</div></div>
-    </div>
-
-    <button id="startBtn" class="btn-action">START MONITOR</button>
+    <button id="startBtn" class="btn-main">ACTIVATE NOW</button>
+    <div id="debug" class="error-log"></div>
 
 <script type="module">
     import { FaceLandmarker, PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     const video = document.getElementById("webcam");
-    const status = document.getElementById("status");
-    const loader = document.getElementById("loader-overlay");
+    const loadMsg = document.getElementById("load-msg");
+    const spinner = document.getElementById("loader-spinner");
+    const debug = document.getElementById("debug");
     let faceModel, poseModel;
 
-    async function activate() {
-        status.innerText = "System: Requesting Access...";
-        
+    async function init() {
         try {
-            // 1. HARDWARE FIRST: Request camera with broad constraints for max compatibility
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: "user",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 } 
-                } 
-            });
-            
+            document.getElementById('startBtn').style.display = 'none';
+            spinner.style.display = 'block';
+            loadMsg.innerText = "Connecting to Camera...";
+
+            // 1. Force Camera Start
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
             video.srcObject = stream;
             
             video.onloadedmetadata = async () => {
-                video.play();
-                loader.innerText = "AI Brain Loading...";
-                status.innerText = "System: Loading AI Models...";
-                document.getElementById('startBtn').style.display = "none";
-                
-                await loadAI();
+                loadMsg.innerText = "Camera Active.\nDownloading AI Brain...";
+                await setupAI();
             };
-        } catch (err) {
-            status.innerText = "ERR: " + err.name + " - " + err.message;
-            loader.innerText = "Camera Access Denied";
-            console.error(err);
+        } catch (e) {
+            loadMsg.innerText = "Connection Failed";
+            debug.innerText = "Camera Error: " + e.message;
         }
     }
 
-    async function loadAI() {
-        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-        
-        faceModel = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
-            runningMode: "VIDEO"
-        });
+    async function setupAI() {
+        try {
+            // Use a specific versioned CDN to prevent hanging
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+            
+            faceModel = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "GPU" },
+                runningMode: "VIDEO"
+            });
 
-        poseModel = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task" },
-            runningMode: "VIDEO"
-        });
+            poseModel = await PoseLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task", delegate: "GPU" },
+                runningMode: "VIDEO"
+            });
 
-        loader.style.display = "none";
-        status.innerText = "System: AI Monitoring Active";
-        detect();
+            document.getElementById('loader-text').style.display = 'none';
+            detect();
+        } catch (e) {
+            loadMsg.innerText = "AI Failed to Load";
+            debug.innerText = "AI Error: " + e.message + "\nTry refreshing on a strong Wi-Fi connection.";
+        }
     }
 
     function detect() {
@@ -118,42 +126,31 @@
             const f = fR.faceLandmarks[0];
             const p = pR.poseLandmarks[0];
 
-            // Head scale to normalize baby distance
+            // Normalize distance based on eye width
             const scale = Math.hypot(f[33].x - f[263].x, f[33].y - f[263].y);
 
-            // Hunger: Hand to mouth
-            const handMouth = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
-            updateUI('h', handMouth < scale * 2.3, 'Hungry Cue', 'Quiet');
+            // 1. HUNGER (Hand to mouth)
+            const hDist = Math.hypot(p[16].x - f[13].x, p[16].y - f[13].y);
+            document.getElementById('h-val').innerText = hDist < scale * 2.3 ? "Hungry Cue!" : "Quiet";
+            document.getElementById('h-val').style.color = hDist < scale * 2.3 ? "#ff7675" : "#55efc4";
 
-            // Colic: Knees up + Mouth wide
-            const kneeHip = Math.abs(p[26].y - p[24].y);
-            const mouthOpen = Math.abs(f[13].y - f[14].y);
-            updateUI('c', kneeHip < scale * 3 && mouthOpen > 0.03, 'Colic Sign', 'Comfortable');
+            // 2. COLIC (Knees up + Mouth open)
+            const kUp = Math.abs(p[26].y - p[24].y);
+            const mOpen = Math.abs(f[13].y - f[14].y);
+            document.getElementById('c-val').innerText = (kUp < scale * 3 && mOpen > 0.03) ? "Gas Alert" : "Stable";
 
-            // Diaper: Rapid leg activity
-            const kick = Math.abs(p[26].x - p[25].x);
-            updateUI('d', kick > 0.18, 'Agitated', 'Steady');
+            // 3. DIAPER (Leg kicking speed)
+            const speed = Math.abs(p[26].x - p[25].x);
+            document.getElementById('d-val').innerText = speed > 0.18 ? "Agitated" : "Steady";
 
-            // State: Eyelids
-            const eyeGap = Math.abs(f[159].y - f[145].y);
-            document.getElementById('s-val').innerText = eyeGap < 0.012 ? "Sleeping" : "Awake";
+            // 4. SLEEP
+            const eyes = Math.abs(f[159].y - f[145].y);
+            document.getElementById('s-val').innerText = eyes < 0.012 ? "Sleeping" : "Awake";
         }
         requestAnimationFrame(detect);
     }
 
-    function updateUI(id, active, activeMsg, idleMsg) {
-        const card = document.getElementById(id + '-card');
-        const val = document.getElementById(id + '-val');
-        if (active) {
-            card.classList.add('alert-active');
-            val.innerText = activeMsg;
-        } else {
-            card.classList.remove('alert-active');
-            val.innerText = idleMsg;
-        }
-    }
-
-    document.getElementById('startBtn').onclick = activate;
+    document.getElementById('startBtn').onclick = init;
 </script>
 </body>
 </html>
