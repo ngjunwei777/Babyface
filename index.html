@@ -6,145 +6,91 @@
     <title>Understanding Caius | Ng Family</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
     <style>
-        :root { --brand: #74b9ff; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #fdcb6e; }
-        body.night-mode { --bg: #000; --card: #111; --text: #94a3b8; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; transition: 0.5s; }
-        .app-container { width: 100%; max-width: 600px; text-align: center; }
-        #monitor-window { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 24px; overflow: hidden; border: 4px solid var(--card); }
-        video { width: 100%; height: 100%; transform: scaleX(-1); }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 15px 0; }
-        button { padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-start { background: var(--brand); color: white; width: 100%; font-size: 1.1rem; }
-        .insights { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
-        .card { background: var(--card); padding: 15px; border-radius: 18px; text-align: left; border: 1px solid #334155; }
-        .alert-active { background: #7f1d1d !important; border-color: #ff7675 !important; }
-        #status-bar { padding: 10px; color: var(--accent); font-weight: bold; height: 20px; }
-        .remote-config { margin-top: 20px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; text-align: left; }
-        input { width: 95%; padding: 10px; margin-top: 8px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; }
+        :root { --brand: #74b9ff; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
+        body { font-family: system-ui; background: var(--bg); color: var(--text); text-align: center; padding: 20px; }
+        #monitor-window { width: 100%; max-width: 500px; aspect-ratio: 4/3; background: #000; margin: 20px auto; border-radius: 20px; border: 4px solid var(--card); overflow: hidden; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .btn-main { width: 100%; max-width: 500px; padding: 20px; border-radius: 15px; border: none; background: var(--brand); color: #000; font-weight: bold; cursor: pointer; font-size: 1.2rem; }
+        #log-console { margin-top: 15px; font-size: 0.8rem; color: #ff7675; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; min-height: 40px; }
+        .insights { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 500px; margin: 20px auto; }
+        .card { background: var(--card); padding: 15px; border-radius: 15px; }
     </style>
 </head>
 <body>
 
-<div class="app-container">
-    <h1 style="color:var(--brand); margin-bottom: 5px;">Understanding Caius</h1>
-    <p style="font-size: 0.8rem; margin: 0 0 15px 0; color: #94a3b8;">Created by Ng Family</p>
-    
-    <button id="startBtn" class="btn-start">🚀 CLICK TO START CAMERA</button>
-    <div id="status-bar">Waiting for user...</div>
+    <h1>Understanding Caius</h1>
+    <p>Created by Ng Family</p>
 
     <div id="monitor-window">
         <video id="webcam" autoplay playsinline muted></video>
     </div>
 
-    <div class="controls">
-        <button id="calibBtn" style="display:none; background:var(--accent)">Set Baseline</button>
-        <button id="nightBtn" style="display:none; background:#4b7bec; color:white;">Night Mode</button>
-    </div>
+    <button id="startBtn" class="btn-main">ACTIVATE MONITOR</button>
+    
+    <div id="log-console">Ready to initialize...</div>
 
     <div class="insights">
-        <div id="hunger-card" class="card"><small>Hunger</small><div id="h-label">Neutral</div></div>
-        <div id="colic-card" class="card"><small>Colic/Gas</small><div id="c-label">Neutral</div></div>
+        <div class="card">Hunger: <span id="h-label">...</span></div>
+        <div class="card">Colic: <span id="c-label">...</span></div>
     </div>
-
-    <div class="remote-config">
-        <strong>Pushover Remote Keys (iPhone)</strong>
-        <input type="text" id="pushUser" placeholder="User Key">
-        <input type="text" id="pushToken" placeholder="API Token">
-    </div>
-</div>
 
 <script type="module">
     import { FaceLandmarker, PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     const video = document.getElementById("webcam");
-    const status = document.getElementById("status-bar");
+    const consoleLog = document.getElementById("log-console");
     let faceLandmarker, poseLandmarker;
-    let baseline = { handMouth: 0.5, kneeHip: 0.3, active: false };
 
-    async function startApp() {
-        // Safety Check for HTTPS
+    async function activate() {
+        consoleLog.innerText = "Step 1: Checking Security Protocol...";
+        
         if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-            status.innerHTML = "❌ Error: HTTPS required. Change URL to https://";
+            consoleLog.innerText = "CRITICAL ERROR: Camera requires HTTPS. Please ensure your URL starts with https://";
             return;
         }
 
         try {
-            status.innerText = "Loading AI Brain...";
+            consoleLog.innerText = "Step 2: Loading AI Models...";
             const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
             
-            faceLandmarker = await FaceLandmarker.createFromOptions(vision, { 
-                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" }, 
-                runningMode: "VIDEO" 
-            });
-
-            poseLandmarker = await PoseLandmarker.createFromOptions(vision, { 
-                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task" }, 
-                runningMode: "VIDEO" 
-            });
-
-            status.innerText = "Requesting Camera... Please tap 'Allow'";
-            
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } 
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
+                runningMode: "VIDEO"
             });
             
+            poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker/float16/1/pose_landmarker.task" },
+                runningMode: "VIDEO"
+            });
+
+            consoleLog.innerText = "Step 3: Requesting Hardware Access...";
+            
+            const constraints = {
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
+            
             video.onloadedmetadata = () => {
                 video.play();
-                status.innerText = "✅ ONLINE. Monitor Active.";
-                document.getElementById('calibBtn').style.display = "block";
-                document.getElementById('nightBtn').style.display = "block";
+                consoleLog.innerText = "SUCCESS: System Online. Monitoring Caius.";
                 document.getElementById('startBtn').style.display = "none";
-                detect();
             };
-        } catch (e) {
-            status.innerText = "❌ Error: " + e.message;
-            console.error(e);
-        }
-    }
 
-    function detect() {
-        const now = performance.now();
-        const resultsF = faceLandmarker.detectForVideo(video, now);
-        const resultsP = poseLandmarker.detectForVideo(video, now);
-
-        if (resultsF.faceLandmarks[0] && resultsP.poseLandmarks[0]) {
-            const face = resultsF.faceLandmarks[0];
-            const pose = resultsP.poseLandmarks[0];
-
-            // Calculations
-            const hmDist = Math.hypot(pose[16].x - face[13].x, pose[16].y - face[13].y);
-            const khGap = Math.abs(pose[26].y - pose[24].y);
-
-            if (baseline.active) {
-                if (hmDist < (baseline.handMouth * 0.6)) {
-                    update('hunger-card', 'h-label', 'Hungry');
-                } else { update('hunger-card', 'h-label', 'Neutral'); }
-
-                if (khGap < (baseline.kneeHip * 0.75)) {
-                    update('colic-card', 'c-label', 'Gas Sign');
-                } else { update('colic-card', 'c-label', 'Neutral'); }
-            } else {
-                baseline.handMouth = hmDist;
-                baseline.kneeHip = khGap;
+        } catch (error) {
+            consoleLog.innerText = "CAMERA ERROR: " + error.name + " - " + error.message;
+            if (error.name === 'NotAllowedError') {
+                consoleLog.innerText += " (Check your browser settings to unblock the camera)";
             }
         }
-        requestAnimationFrame(detect);
     }
 
-    function update(id, lid, msg) {
-        const el = document.getElementById(id);
-        const lbl = document.getElementById(lid);
-        lbl.innerText = msg;
-        msg !== 'Neutral' ? el.classList.add('alert-active') : el.classList.remove('alert-active');
-    }
-
-    document.getElementById('startBtn').addEventListener('click', startApp);
-    document.getElementById('calibBtn').addEventListener('click', () => {
-        baseline.active = true;
-        status.innerText = "✅ Baseline Set. Monitoring Caius...";
-    });
-    document.getElementById('nightBtn').addEventListener('click', () => document.body.classList.toggle('night-mode'));
+    document.getElementById("startBtn").addEventListener("click", activate);
 </script>
 </body>
 </html>
